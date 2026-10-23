@@ -1,0 +1,51 @@
+# Standalone SIP test target for the barebone client.
+#
+# Asterisk acts as the "call centre": it registers the barebone UA and answers
+# calls to fixed test extensions that exercise the audio path in known ways:
+#
+#   echo      -> Echo()      : loops your audio back  (hear echo / test the AEC)
+#   milliwatt -> Milliwatt() : steady 1004 Hz 0 dBm0 tone (measure level stability / AGC pumping / clicks)
+#   tone      -> Playtones   : dial-tone style reference
+#   silence   -> long silence then tone (test comfort noise / silence gating)
+#
+# Host networking is used so RTP flows without NAT translation. Linux/WSL2 only.
+# On non-Linux Docker, switch to bridged mode and add explicit RTP port mappings
+# plus pjsip.conf external addresses (see README.md).
+
+services:
+  asterisk:
+    build: ./asterisk
+    container_name: barebone-asterisk
+    network_mode: host
+    restart: unless-stopped
+    # SIP 5060/udp+tcp and RTP 10000-10200/udp are used on the host directly.
+    # ARI HTTP server listens on 8088/tcp; AMI on 5038/tcp.
+    volumes:
+      # Configs the webui can edit; Asterisk sees the edits on reload.
+      - ./asterisk:/etc/asterisk-custom:ro
+      # Recordings, uploads and captures, shared with the webui and the host.
+      - ${SIP_TEST_DIR:-/tmp/sip-test}:/asterisk-tmp
+      - asterisk-logs:/var/log/asterisk
+
+  webui:
+    build: ./webui
+    container_name: barebone-webui
+    network_mode: host
+    restart: unless-stopped
+    # Host networking so the webui reaches Asterisk on 127.0.0.1:5038 (AMI) and
+    # 127.0.0.1:8088 (ARI). WebUI itself listens on 8087/tcp.
+    volumes:
+      - ./asterisk:/etc/asterisk          # read-write: webui can edit configs
+      - ${SIP_TEST_DIR:-/tmp/sip-test}:/asterisk-tmp  # recordings, uploads, captures
+      - asterisk-logs:/var/log/asterisk:ro  # Logs tab tails the Asterisk 'full' log
+    environment:
+      ASTERISK_AMI_HOST: 127.0.0.1
+      ASTERISK_AMI_PORT: 5038
+      ASTERISK_AMI_USER: webui
+      ASTERISK_AMI_SECRET: webui_secret
+      ASTERISK_ARI_URL: http://127.0.0.1:8088
+      ASTERISK_ARI_USER: webui
+      ASTERISK_ARI_SECRET: webui_secret
+
+volumes:
+  asterisk-logs:

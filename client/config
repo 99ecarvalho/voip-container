@@ -1,0 +1,26 @@
+# baresip config for the test client. call.sh copies it next to a generated
+# "accounts" file and mounts both into the container.
+
+poll_method		epoll
+
+# Not 5060 / 10000-10200: those belong to Asterisk when both run on one host.
+sip_listen		0.0.0.0:5070
+rtp_ports		20000-20100
+
+# ALSA "default" is routed to PulseAudio/PipeWire; pick devices with
+# AUDIO_OUT / AUDIO_IN (see call.sh). call.sh replaces "default" with "null"
+# when AUDIO_NULL=1.
+audio_player		alsa,default
+audio_source		alsa,default
+audio_alert		alsa,default
+audio_level		no
+
+module_path		/usr/lib/baresip/modules
+
+module			stdio.so
+module			g711.so
+module			opus.so
+module			alsa.so
+
+module_app		account.so
+module_app		menu.so

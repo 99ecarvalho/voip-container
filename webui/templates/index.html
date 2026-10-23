@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Barebone Asterisk — Audio Test Bench</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ static_version }}">
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <h1>Barebone Asterisk</h1>
+    <span id="version-badge">loading&hellip;</span>
+    <span id="ami-status">
+      <span class="dot grey" id="ami-dot"></span>
+      <span id="ami-label">AMI disconnected</span>
+    </span>
+  </header>
+
+  <nav class="top-nav">
+    <button class="nav-tab active" onclick="switchPanel('status',this)">Status</button>
+    <button class="nav-tab" onclick="switchPanel('calls',this)">Calls</button>
+    <button class="nav-tab" onclick="switchPanel('recordings',this)">Recordings</button>
+    <button class="nav-tab" onclick="switchPanel('capture',this)">Capture</button>
+    <button class="nav-tab" onclick="switchPanel('config',this)">Config</button>
+    <button class="nav-tab" onclick="switchPanel('logs',this)">Logs</button>
+  </nav>
+
+  <!-- ===== Status ===== -->
+  <div class="panel active" id="panel-status">
+    <div class="status-grid">
+      <div class="card">
+        <div class="card-title">Endpoints</div>
+        <ul class="endpoint-list" id="endpoint-list">
+          <li><span class="text-dim">Loading&hellip;</span></li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-title">Active Channels</div>
+        <ul class="channel-list" id="channel-list">
+          <li><span class="text-dim">None</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Calls ===== -->
+  <div class="panel" id="panel-calls">
+
+    <div class="card">
+      <div class="card-title">Ring device at test extension</div>
+      <p class="note-text">Calls the registered device&rsquo;s SIP endpoint and connects it to the selected test extension.</p>
+      <div class="ring-row">
+        <div>
+          <span class="label">Account</span>
+          <select id="ring-account">
+            <option value="1001">1001 (RFC 4733)</option>
+            <option value="1001-inband">1001-inband</option>
+            <option value="1001-info">1001-info (SIP INFO)</option>
+            <option value="1001-auto">1001-auto</option>
+            <option value="1001-opus">1001-opus (Opus)</option>
+          </select>
+        </div>
+        <div>
+          <span class="label">Extension</span>
+          <select id="ring-extension">
+            <option value="echo">echo (600) — loopback</option>
+            <option value="milliwatt">milliwatt (601) — 1004 Hz</option>
+            <option value="tone">tone (602) — dial tone</option>
+            <option value="dtmf-test">dtmf-test (603) — 4 digits</option>
+            <option value="record">record (604) — echo+record</option>
+            <option value="opus-echo">opus-echo (605)</option>
+            <option value="silence">silence — 5s→tone</option>
+            <option value="speak">speak — speech sample</option>
+            <option value="tg-real">tg-real (700) — TG emergency</option>
+            <option value="tg-tech">tg-tech (701) — TG technician</option>
+            <option value="tg-routine">tg-routine (702) — TG routine</option>
+            <option value="tg-routine2">tg-routine2 (703)</option>
+            <option value="p100-real">p100-real (704) — P100 emergency</option>
+            <option value="p100-routine">p100-routine (705) — EOX handshake</option>
+            <option value="playfile">playfile (606) — play WAV</option>
+          </select>
+        </div>
+        <button class="btn-primary" onclick="ringDevice()">Ring</button>
+      </div>
+      <div id="ring-result" class="result-msg"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Send DTMF to active channel</div>
+      <div class="dtmf-row">
+        <select id="dtmf-channel" title="Target channel">
+          <option value="">— select channel —</option>
+        </select>
+        <input type="text" class="dtmf-input" id="dtmf-digits" placeholder="1234#" maxlength="20"
+               onkeydown="if(event.key==='Enter')sendDtmf()">
+        <button class="btn-primary" onclick="sendDtmf()">Send</button>
+      </div>
+      <p class="note-text">Sent with the account&rsquo;s DTMF mode (see Reference below). Register with another account to test another mode.</p>
+      <div id="dtmf-result" class="result-msg"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Play WAV into active channel</div>
+      <p class="note-text">Redirects the channel to play the selected file, then continues in Echo().</p>
+      <div class="play-row">
+        <select id="play-channel">
+          <option value="">— select channel —</option>
+        </select>
+        <select id="play-file">
+          <option value="">— no files —</option>
+        </select>
+        <button class="btn-primary" onclick="playWavToChannel()">Play</button>
+        <button class="btn-secondary" onclick="refreshPlayFiles()">↻</button>
+      </div>
+      <div id="play-result" class="result-msg"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Reference</div>
+      <table class="ref-table">
+        <thead><tr><th>Account</th><th>Pass</th><th>DTMF</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>1001</td><td>test</td><td>RFC 4733</td><td>Default</td></tr>
+          <tr><td>1001-inband</td><td>test</td><td>In-band</td><td>Audio tones in the RTP stream</td></tr>
+          <tr><td>1001-info</td><td>test</td><td>SIP INFO</td><td></td></tr>
+          <tr><td>1001-auto</td><td>test</td><td>Auto</td><td>Negotiated</td></tr>
+          <tr><td>1001-opus</td><td>test</td><td>RFC 4733</td><td>Prefers Opus</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ===== Recordings ===== -->
+  <div class="panel" id="panel-recordings">
+    <div class="rec-toolbar">
+      <button class="btn-secondary" onclick="loadRecordings()">Refresh</button>
+      <span id="rec-status" class="rec-status"></span>
+      <span class="rec-upload-wrap">
+        <label class="btn-secondary upload-label">
+          Upload WAV <input type="file" id="wav-upload" accept=".wav" style="display:none"
+                           onchange="uploadWav(this)">
+        </label>
+        <span id="upload-result" class="result-msg"></span>
+      </span>
+    </div>
+    <ul class="rec-list" id="rec-list">
+      <li class="text-dim">Click Refresh to load recordings.</li>
+    </ul>
+  </div>
+
+  <!-- ===== Capture ===== -->
+  <div class="panel" id="panel-capture">
+    <div class="card">
+      <div class="card-title">Packet Capture (tcpdump)</div>
+      <p class="note-text">Captures SIP signalling + RTP media on all interfaces. Download the .pcap and open in Wireshark for analysis.</p>
+      <div class="capture-controls">
+        <div>
+          <span class="label">Filter</span>
+          <input type="text" id="capture-filter" class="capture-filter-input"
+                 value="port 5060 or portrange 10000-10200" placeholder="pcap filter expression">
+        </div>
+        <div class="capture-btns">
+          <button class="btn-primary" id="capture-start-btn" onclick="captureStart()">Start Capture</button>
+          <button class="btn-danger" id="capture-stop-btn" onclick="captureStop()" disabled>Stop</button>
+          <span id="capture-status" class="result-msg"></span>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Saved Captures</div>
+      <button class="btn-secondary mb-8" onclick="loadCaptures()">Refresh</button>
+      <ul class="rec-list" id="capture-list">
+        <li class="text-dim">Click Refresh to list captures.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ===== Config ===== -->
+  <div class="panel" id="panel-config">
+    <div class="card">
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchConfigTab('pjsip.conf',this)">pjsip.conf</button>
+        <button class="tab-btn" onclick="switchConfigTab('extensions.conf',this)">extensions.conf</button>
+        <button class="tab-btn" onclick="switchConfigTab('logger.conf',this)">logger.conf</button>
+      </div>
+      <div id="ctab-pjsip.conf" class="tab-pane active">
+        <textarea class="config-textarea" id="cfg-pjsip.conf" spellcheck="false"></textarea>
+        <div class="config-actions">
+          <button class="btn-primary" onclick="saveConfig('pjsip.conf')">Save &amp; Reload</button>
+          <span class="result-msg" id="cfg-result-pjsip.conf"></span>
+        </div>
+      </div>
+      <div id="ctab-extensions.conf" class="tab-pane">
+        <textarea class="config-textarea" id="cfg-extensions.conf" spellcheck="false"></textarea>
+        <div class="config-actions">
+          <button class="btn-primary" onclick="saveConfig('extensions.conf')">Save &amp; Reload</button>
+          <span class="result-msg" id="cfg-result-extensions.conf"></span>
+        </div>
+      </div>
+      <div id="ctab-logger.conf" class="tab-pane">
+        <textarea class="config-textarea" id="cfg-logger.conf" spellcheck="false"></textarea>
+        <div class="config-actions">
+          <button class="btn-primary" onclick="saveConfig('logger.conf')">Save &amp; Reload</button>
+          <span class="result-msg" id="cfg-result-logger.conf"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Logs ===== -->
+  <div class="panel" id="panel-logs">
+    <div class="log-toolbar">
+      <input type="text" class="log-filter" id="log-filter" placeholder="Filter&hellip;" oninput="renderLog()">
+      <label class="label-chk"><input type="checkbox" id="log-autoscroll" checked> Auto-scroll</label>
+      <button class="btn-secondary" onclick="clearLog()">Clear</button>
+    </div>
+    <div id="log-output"></div>
+  </div>
+
+</div>
+<script src="{{ url_for('static', filename='app.js') }}?v={{ static_version }}"></script>
+</body>
+</html>
